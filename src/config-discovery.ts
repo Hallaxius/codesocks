@@ -17,14 +17,14 @@ function resolveAgainst(dir: string, p: string): string {
 }
 
 /**
- * Precedência determinística (sem mesclagem):
- * 1. options.configPath (relativo a directory) — deve existir.
- * 2. $CODESOCKS_CONFIG — deve existir.
- * 3. Par sibling mais próximo: codesocks.jsonc ao lado de opencode.json/jsonc,
- *    direto ou dentro de .opencode/, subindo de directory até a raiz.
+ * Deterministic precedence (no merging):
+ * 1. options.configPath (relative to directory) — must exist.
+ * 2. $CODESOCKS_CONFIG — must exist.
+ * 3. Nearest sibling pair: codesocks.jsonc next to opencode.json/jsonc,
+ *    direct or inside .opencode/, walking up from directory to the root.
  * 4. Global: dirname($OPENCODE_CONFIG) / $OPENCODE_CONFIG_DIR /
  *    $XDG_CONFIG_HOME/opencode / <home>/.config/opencode.
- * 5. Ausente => undefined (chamador usa configuração desativada).
+ * 5. Absent => undefined (caller uses the disabled configuration).
  */
 export function findConfigPath(options: ConfigLocation): string | undefined {
   const env = options.env ?? process.env;

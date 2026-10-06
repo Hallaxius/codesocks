@@ -38,7 +38,7 @@ describe("parseConfig", () => {
   test("allows comments and trailing commas", async () => {
     const { parseConfig } = await import("../src/config.js");
     const text = `{
-      // comentario em português: configuração mínima
+      // minimal config comment
       "proxies": { "local": "${validProxy}", },
       "providers": { "p": { "proxy": "local", "allowedOrigins": ["https://a.example"], }, },
     }`;
@@ -124,7 +124,7 @@ describe("parseConfig", () => {
         {},
       ),
     ).toThrow();
-    // sem interpolação do texto inteiro: nome do provedor não é expandido
+    // no interpolation of the full text: the provider name is not expanded
     const literal = parseConfig(
       JSON.stringify({
         proxies: { local: validProxy },
