@@ -1,0 +1,23 @@
+{
+  // Exemplo do CodeSocks — comentários em português.
+  // Começa desativado (enabled false) para não expor proxy de espaço reservado.
+  // Troque para true somente após configurar um proxy real.
+  "$schema": "../codesocks.schema.json",
+  "enabled": false,
+  "proxies": {
+    // Proxy local de exemplo (socks5h em localhost). Use {env:NOME} para credenciais:
+    // "socks5h://{env:PROXY_USER}:{env:PROXY_PASS}@127.0.0.1:1080"
+    "local": "socks5h://127.0.0.1:1080"
+  },
+  "providers": {
+    // Cada provedor aponta para um proxy e lista origens exatas permitidas.
+    "openai": {
+      "proxy": "local",
+      "allowedOrigins": ["https://api.openai.com"],
+      "maxConcurrent": 2,
+      "minIntervalMs": 0,
+      "timeoutMs": 120000,
+      "maxQueueWaitMs": 120000
+    }
+  }
+}

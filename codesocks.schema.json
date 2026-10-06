@@ -1,0 +1,78 @@
+{
+  "$id": "https://hallaxius.dev/codesocks.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Esquema do CodeSocks: comentários e descrições em português. Exemplo desativado por padrão para evitar exposição de proxy de espaço reservado.",
+  "title": "Configuração do CodeSocks",
+  "description": "Arquivo codesocks.jsonc: aceita comentários e vírgulas à direita. Falha fechada em sintaxe inválida ou campos desconhecidos.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proxies", "providers"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Caminho ou URL do esquema (opcional, apenas documentação)."
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Quando falso, o plug-in fica desativado e não usa nenhum proxy."
+    },
+    "proxies": {
+      "type": "object",
+      "description": "Mapa nome -> URL do proxy. Permite segredos via {env:NOME}; nunca registre a URL.",
+      "additionalProperties": {
+        "type": "string",
+        "description": "Esquemas http, https, socks4, socks4a, socks5, socks5h; sem caminho, consulta ou fragmento."
+      }
+    },
+    "providers": {
+      "type": "object",
+      "description": "Mapa provedor -> rota de saída.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["proxy", "allowedOrigins"],
+        "properties": {
+          "proxy": {
+            "type": "string",
+            "description": "Nome de um proxy declarado em proxies."
+          },
+          "allowedOrigins": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Origens exatas http(s) permitidas (obrigatório, sem caminho).",
+            "items": { "type": "string" }
+          },
+          "maxConcurrent": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64,
+            "default": 2,
+            "description": "Máximo de conexões simultâneas (padrão 2)."
+          },
+          "minIntervalMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 60000,
+            "default": 0,
+            "description": "Intervalo mínimo entre requisições em ms (padrão 0)."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600000,
+            "default": 120000,
+            "description": "Tempo limite por requisição em ms (padrão 120000)."
+          },
+          "maxQueueWaitMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600000,
+            "default": 120000,
+            "description": "Espera máxima em fila em ms (padrão 120000)."
+          }
+        }
+      }
+    }
+  }
+}

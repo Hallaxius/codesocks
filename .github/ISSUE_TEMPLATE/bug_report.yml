@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible issue with codesocks.
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share a minimal reproduction. Never include real proxy credentials, provider keys, secrets, or customer data — use synthetic values (e.g. `socks5h://user:pass@127.0.0.1:1080`).
+  - type: input
+    id: version
+    attributes:
+      label: codesocks version
+      description: Which package version are you using?
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Node.js
+        - Bun
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the provider, proxy scheme, a minimal `codesocks.jsonc` (redacted), and a minimal code sample.
+      render: javascript
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the error message or observed result, with sensitive values removed.
+    validations:
+      required: true

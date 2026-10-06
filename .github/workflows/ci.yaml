@@ -1,0 +1,74 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bun:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: bun run typecheck
+      - run: bun test tests --coverage
+
+  node-consumer:
+    needs: bun
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: npm pack --ignore-scripts
+      - run: |
+          tgz="$(ls *.tgz)"
+          tmpdir="$(mktemp -d)"
+          npm install --prefix "$tmpdir" --ignore-scripts --no-audit --no-fund "./$tgz"
+          cd "$tmpdir"
+          node --input-type=module -e "
+            import plugin from '@hallaxius/codesocks/server';
+            import { strict as assert } from 'node:assert';
+            assert.equal(plugin.id, 'codesocks');
+            assert.equal(typeof plugin.setup, 'function');
+            console.log('consumer smoke ok:', plugin.id);
+          "
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      # high+ only: one moderate transitive (@opentelemetry/core via
+      # @opencode/plugin) is documented in README/SECURITY.md and not fixable
+      # inside the dependents' ranges.
+      - run: bun audit --audit-level=high
