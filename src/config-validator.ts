@@ -94,7 +94,7 @@ function assertOrigin(provider: string, raw: unknown): string {
   return u.origin;
 }
 
-/** Valida JSONC já convertido em objeto; nunca inclui URLs ou texto original nos erros. */
+/** Validates an already-parsed JSONC object; never includes URLs or original text in errors. */
 export function validateDocument(doc: unknown, env: NodeJS.ProcessEnv): CodeSocksConfig {
   if (!isRecord(doc)) throw new ConfigError("invalid config document");
   for (const k of Object.keys(doc)) {
@@ -138,8 +138,8 @@ export function validateDocument(doc: unknown, env: NodeJS.ProcessEnv): CodeSock
 }
 
 /**
- * Converte JSONC em CodeSocksConfig com valores padrão.
- * Aceita comentários e vírgulas à direita; rejeita erros de sintaxe e campos desconhecidos.
+ * Converts JSONC to CodeSocksConfig with defaults.
+ * Accepts comments and trailing commas; rejects syntax errors and unknown fields.
  */
 export function parseConfig(text: string, env: NodeJS.ProcessEnv = {}): CodeSocksConfig {
   let reserved = false;

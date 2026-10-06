@@ -1,55 +1,55 @@
-# CodeSocks — proxy interceptador para OpenCode V2
+# CodeSocks — interceptor proxy for OpenCode V2
 
 [![CI](https://github.com/Hallaxius/codesocks/actions/workflows/ci.yaml/badge.svg)](https://github.com/Hallaxius/codesocks/actions/workflows/ci.yaml)
 [![npm version](https://img.shields.io/npm/v/@hallaxius/codesocks.svg)](https://www.npmjs.com/package/@hallaxius/codesocks)
 [![license: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](./LICENSE)
 [![Node.js >= 24](https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg)](https://nodejs.org)
 
-Mantido por [Hallaxius](https://github.com/Hallaxius).
+Maintained by [Hallaxius](https://github.com/Hallaxius).
 
-Plugin nativo OpenCode V2 (`@opencode/plugin` 2.x) que envia o tráfego HTTP de provedores selecionados por um proxy HTTP/HTTPS/SOCKS explícito, preservando `baseURL`, corpo, credenciais e streaming (SSE).
+Native OpenCode V2 plugin (`@opencode/plugin` 2.x) that routes HTTP traffic of selected providers through an explicit HTTP/HTTPS/SOCKS proxy, preserving `baseURL`, body, credentials, and streaming (SSE).
 
-Fluxo: `prompt → hook http.request do provedor → relay local 127.0.0.1 → proxy configurado → baseURL original`.
+Flow: `prompt → provider http.request hook → local 127.0.0.1 relay → configured proxy → original baseURL`.
 
-> Não elimina rate limit do provedor. O que o plugin faz é trocar o IP de origem e aplicar ritmo/fila por provedor (`maxConcurrent`, `minIntervalMs`, backoff em `429` com `Retry-After`). Limites da conta/plano continuam valendo.
+> Does not eliminate provider rate limits. What the plugin does is change the egress IP and apply per-provider pacing/queueing (`maxConcurrent`, `minIntervalMs`, `429` backoff honoring `Retry-After`). Account/plan limits still apply.
 
-## Compatibilidade
+## Compatibility
 
-- OpenCode V2 (`>=2.0.15 <3`), testado contra CLI `2.0.15` e repositório `anomalyco/opencode` branch `v2` (SHA `6bffe79` em `docs/opencode-analysis.md`).
-- Entrada estável para diretório local: `server.js` reexporta `dist/index.js` (o loader V2 exige diretório, não arquivo).
-- `Plugin.define({ id: "codesocks" })`, `ctx.provider.transform` força `settings.transport = "http"` nos provedores selecionados, `ctx.session.hook("http.request", …, { providerID })` reescreve, `experimental.ws.handshake` falha fechado (WebSocket não passa pelo relay).
+- OpenCode V2 (`>=2.0.15 <3`), tested against CLI `2.0.15` and the `anomalyco/opencode` `v2` branch (SHA `6bffe79` in `docs/opencode-analysis.md`).
+- Stable local-directory entrypoint: `server.js` re-exports `dist/index.js` (the V2 loader requires a directory, not a file).
+- `Plugin.define({ id: "codesocks" })`, `ctx.provider.transform` forces `settings.transport = "http"` on selected providers, `ctx.session.hook("http.request", …, { providerID })` rewrites, `experimental.ws.handshake` fails closed (WebSocket does not go through the relay).
 
-## Instalação
+## Installation
 
 ```bash
 bun install
 bun run build
 ```
 
-No `opencode.jsonc` do projeto (ou global), registre o diretório do pacote:
+In the project (or global) `opencode.jsonc`, register the package directory:
 
 ```jsonc
 {
-  "plugins": [{ "package": "file:///caminho/para/codesocks" }]
+  "plugins": [{ "package": "file:///path/to/codesocks" }]
 }
 ```
 
-## Configuração — `codesocks.jsonc`
+## Configuration — `codesocks.jsonc`
 
-Fica ao lado do `opencode.jsonc`/`opencode.json` (direto ou dentro de `.opencode/`) para facilitar manutenção. Precedência determinística, sem merge:
+Lives next to `opencode.jsonc`/`opencode.json` (directly or inside `.opencode/`) for easy maintenance. Deterministic precedence, no merging:
 
-1. `configPath` da opção do plugin (relativo a `ctx.location.directory`) — deve existir.
-2. `$CODESOCKS_CONFIG` — deve existir.
-3. Sibling mais próximo subindo de `directory` até a raiz: `codesocks.jsonc` ao lado de `opencode.json/jsonc`, direto ou em `.opencode/`.
+1. Plugin option `configPath` (relative to `ctx.location.directory`) — must exist.
+2. `$CODESOCKS_CONFIG` — must exist.
+3. Nearest sibling walking up from `directory` to the root: `codesocks.jsonc` next to `opencode.json/jsonc`, directly or in `.opencode/`.
 4. Global: `dirname($OPENCODE_CONFIG)` / `$OPENCODE_CONFIG_DIR` / `$XDG_CONFIG_HOME/opencode` / `<home>/.config/opencode`.
-5. Ausente → plugin desativado (mapas vazios), sem erro.
+5. Absent → plugin disabled (empty maps), no error.
 
-Exemplo mínimo (`examples/codesocks.example.jsonc`):
+Minimal example (`examples/codesocks.example.jsonc`):
 
 ```jsonc
 {
   "$schema": "../codesocks.schema.json",
-  "enabled": false, // troque para true após configurar um proxy real
+  "enabled": false, // switch to true after configuring a real proxy
   "proxies": {
     // "socks5h://{env:PROXY_USER}:{env:PROXY_PASS}@127.0.0.1:1080"
     "local": "socks5h://127.0.0.1:1080"
@@ -67,34 +67,34 @@ Exemplo mínimo (`examples/codesocks.example.jsonc`):
 }
 ```
 
-Regras (falha fechada, sem vazar URL nos erros):
+Rules (fail-closed, never leaking URLs in errors):
 
-- `proxies`: esquemas `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`; sem caminho/query/fragmento/PAC. Segredos só via `{env:NOME}` em URLs de proxy; variável ausente/vazia = erro.
-- `providers.<id>`: `proxy` deve existir em `proxies` (comparação por chave própria), `allowedOrigins` não vazio, origens `http(s)` exatas normalizadas para `origin` (caixa/porta-padrão/barra normalizadas), sem credenciais/caminho.
-- Campos desconhecidos, `__proto__`, JSONC inválido ou arquivo selecionado ilegível = `ConfigError`.
-- Chave `__proto__` é rejeitada na varredura do texto antes do parse; mapas internos usam protótipo nulo.
+- `proxies`: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h` schemes; no path/query/fragment/PAC. Secrets only via `{env:NAME}` in proxy URLs; a missing/empty variable is an error.
+- `providers.<id>`: `proxy` must exist in `proxies` (own-key comparison), `allowedOrigins` non-empty, exact `http(s)` origins normalized to `origin` (case/default-port/trailing-slash normalized), no credentials/path.
+- Unknown fields, `__proto__`, invalid JSONC, or an unreadable selected file = `ConfigError`.
+- The `__proto__` key is rejected by scanning the raw text before parsing; internal maps use null prototypes.
 
-## Segurança do relay
+## Relay security
 
-- Relay HTTP só em `127.0.0.1`, porta efêmera; reescrita por ticket aleatório de 32 bytes, uso único, expiração 60 s, limite 1024 pendentes, método conferido; ticket inválido/reutilizado = `403`.
-- Só origens de `allowedOrigins`; origem não aprovada = erro antes de qualquer rede (credenciais nunca saem para destino errado).
-- Upstream `3xx` é bloqueado com `502` genérico (nunca segue redirect fora do proxy); `429` aplica `cooldown` por `Retry-After` (segundos/data, padrão 1 s, nunca encurta espera existente).
-- Cabeçalhos hop-by-hop e `proxy-*` removidos; status/corpo/SSE preservados; abort/timeout cancelam socket upstream; agentes explícitos (`http-proxy-agent`/`https-proxy-agent`/`socks-proxy-agent`) sem `HTTP_PROXY/HTTPS_PROXY/NO_PROXY`.
-- `socks5h` resolve DNS no proxy (ATYP domínio); TLS verificado de ponta a ponta, sem desabilitar verificação.
+- HTTP relay on `127.0.0.1` only, ephemeral port; rewrite via random 32-byte single-use tickets, 60 s expiry, 1024 pending cap, method check; invalid/replayed ticket = `403`.
+- Only `allowedOrigins` origins; an unapproved origin errors before any network happens (credentials never leave for the wrong destination).
+- Upstream `3xx` is blocked with a generic `502` (never follows redirects outside the proxy); `429` applies `cooldown` from `Retry-After` (seconds/date, 1 s default, never shortens an existing wait).
+- Hop-by-hop and `proxy-*` headers stripped; status/body/SSE preserved; abort/timeout cancel the upstream socket; explicit agents (`http-proxy-agent`/`https-proxy-agent`/`socks-proxy-agent`) with no `HTTP_PROXY/HTTPS_PROXY/NO_PROXY`.
+- `socks5h` resolves DNS at the proxy (domain ATYP); end-to-end verified TLS, never disabling verification.
 
-## Verificação
+## Verification
 
 ```bash
-bun run check          # typecheck + build + 37 testes (bun test tests)
-bun run smoke:opencode # sobe origem SSE + proxy fakes locais e roda `opencode run --standalone` isolado
-bun audit --production # limpo — 0 vulnerabilidades (o moderado transitivo do @opentelemetry/core saiu com o @opencode/plugin 2.0.22)
-npm pack --dry-run     # tarball: dist + server.js + LICENSE + schema + examples + README
+bun run check          # typecheck + build + 37 tests (bun test tests)
+bun run smoke:opencode # brings up fake local SSE origin + proxy and runs isolated `opencode run --standalone`
+bun audit --production # clean — 0 vulnerabilities (the transitive @opentelemetry/core moderate went away upstream with @opencode/plugin 2.0.22)
+npm pack --dry-run     # tarball: dist + server.js + schema + examples + README + LICENSE
 ```
 
-Smoke esperado: `{"result":"PASS","proxyHits":2,"upstreamHits":2,"marker":"CODESOCKS_SMOKE_OK"}`.
+Expected smoke: `{"result":"PASS","proxyHits":2,"upstreamHits":2,"marker":"CODESOCKS_SMOKE_OK"}`.
 
-## Limites honestos
+## Honest limits
 
-- WebSocket dos provedores selecionados é recusado (use HTTP). `ctx.generate.text` fora de sessão não passa pelos hooks de sessão.
-- Fila limitada a 256 por provedor; `503` com fila indisponível, `502` genérico em falha de transporte.
-- Auditoria atual: limpa (`bun audit --production` com 0 vulnerabilidades; o moderado transitivo `@opentelemetry/core` foi resolvido a montante no `@opencode/plugin 2.0.22`). Sem dependência alta direta após troca do `proxy-agent` guarda-chuva por agentes explícitos.
+- WebSocket on selected providers is refused (use HTTP). `ctx.generate.text` outside a session does not pass through session hooks.
+- Queue capped at 256 per provider; `503` when the queue is unavailable, generic `502` on transport failure.
+- Current audit: clean (`bun audit --production` with 0 vulnerabilities; the transitive `@opentelemetry/core` moderate was fixed upstream in `@opencode/plugin 2.0.22`). No high direct dependency after swapping the `proxy-agent` umbrella for explicit agents.

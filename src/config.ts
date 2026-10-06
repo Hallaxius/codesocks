@@ -9,9 +9,9 @@ export type { CodeSocksConfig, ConfigLocation, LoadedConfig };
 const DISABLED: CodeSocksConfig = { enabled: false, proxies: {}, providers: {} };
 
 /**
- * Carrega codesocks.jsonc seguindo a precedência de findConfigPath.
- * Ausência automática => desativado com mapas vazios; arquivo selecionado
- * malformado => falha fechada (lança ConfigError).
+ * Loads codesocks.jsonc following the findConfigPath precedence.
+ * Auto-absent => disabled with empty maps; selected malformed file
+ * => fail-closed (throws ConfigError).
  */
 export async function loadConfig(options: ConfigLocation): Promise<LoadedConfig> {
   const env = options.env ?? process.env;
