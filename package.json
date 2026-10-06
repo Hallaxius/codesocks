@@ -59,7 +59,7 @@
     "@opencode/plugin": "2.0.22",
     "@types/bun": "1.4.2",
     "@types/node": "24.10.1",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   },
   "peerDependencies": {
     "@opencode/plugin": ">=2.0.15 <3"
