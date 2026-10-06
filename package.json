@@ -1,7 +1,7 @@
 {
   "name": "@hallaxius/codesocks",
   "version": "0.1.0",
-  "description": "Scoped HTTP and SOCKS egress proxy plugin for OpenCode V2",
+  "description": "Route selected OpenCode V2 providers through HTTP, HTTPS, or SOCKS proxies without changing baseURL.",
   "license": "Apache-2.0",
   "author": "Hallaxius",
   "repository": {
@@ -42,6 +42,7 @@
   },
   "files": ["dist", "server.js", "LICENSE", "codesocks.schema.json", "examples", "README.md"],
   "scripts": {
+    "lint": "node scripts/lint-docs.mjs",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "bun run build && bun test tests",
@@ -59,7 +60,11 @@
     "@opencode/plugin": "2.0.22",
     "@types/bun": "1.4.2",
     "@types/node": "24.10.1",
+    "markdownlint": "0.41.1",
     "typescript": "7.0.2"
+  },
+  "overrides": {
+    "katex": "0.18.2"
   },
   "peerDependencies": {
     "@opencode/plugin": ">=2.0.15 <3"

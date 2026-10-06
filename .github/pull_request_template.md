@@ -1,8 +1,12 @@
 ## Summary
 
-<!-- What does this change do, and why? Link related issues. -->
+<!-- Tell me what changed and why. Link related issues. -->
 
 ## Verification
+
+- [ ] `bun run lint` passes
+
+<!-- Check only what you verified. Note failed or skipped checks below. -->
 
 - [ ] `bun run build` passes
 - [ ] `bun run typecheck` passes

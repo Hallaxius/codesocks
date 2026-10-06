@@ -1,19 +1,19 @@
 name: Feature request
-description: Suggest an improvement to codesocks.
+description: Tell me what CodeSocks is missing.
 title: "feature: "
 body:
   - type: textarea
     id: problem
     attributes:
       label: Problem to solve
-      description: What are you trying to do, and what limitation are you hitting?
+      description: Describe what you're trying to do and where CodeSocks gets in the way.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: Proposed solution
-      description: Describe the behavior or API you would find useful.
+      description: Describe the behavior or API you'd use.
     validations:
       required: true
   - type: textarea

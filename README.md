@@ -1,23 +1,23 @@
-# CodeSocks — interceptor proxy for OpenCode V2
+# CodeSocks: proxy interceptor for OpenCode V2
 
 [![CI](https://github.com/Hallaxius/codesocks/actions/workflows/ci.yaml/badge.svg)](https://github.com/Hallaxius/codesocks/actions/workflows/ci.yaml)
 [![npm version](https://img.shields.io/npm/v/@hallaxius/codesocks.svg)](https://www.npmjs.com/package/@hallaxius/codesocks)
 [![license: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](./LICENSE)
 [![Node.js >= 24](https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg)](https://nodejs.org)
 
-Maintained by [Hallaxius](https://github.com/Hallaxius).
+Built by [Hallaxius](https://github.com/Hallaxius).
 
-Native OpenCode V2 plugin (`@opencode/plugin` 2.x) that routes HTTP traffic of selected providers through an explicit HTTP/HTTPS/SOCKS proxy, preserving `baseURL`, body, credentials, and streaming (SSE).
+I built CodeSocks to pick a proxy per provider without changing `baseURL`. It's a native OpenCode V2 plugin (`@opencode/plugin` 2.x). You choose the providers and the proxy. Request bodies, provider credentials, and SSE streaming stay intact.
 
-Flow: `prompt → provider http.request hook → local 127.0.0.1 relay → configured proxy → original baseURL`.
+Route: `prompt → provider http.request hook → local 127.0.0.1 relay → your proxy → original baseURL`.
 
-> Does not eliminate provider rate limits. What the plugin does is change the egress IP and apply per-provider pacing/queueing (`maxConcurrent`, `minIntervalMs`, `429` backoff honoring `Retry-After`). Account/plan limits still apply.
+> A proxy changes your egress IP. It doesn't erase account or plan quotas. CodeSocks paces requests per provider with `maxConcurrent`, `minIntervalMs`, and `429` cooldowns honoring `Retry-After`.
 
 ## Compatibility
 
-- OpenCode V2 (`>=2.0.15 <3`), tested against CLI `2.0.15` and the `anomalyco/opencode` `v2` branch (SHA `6bffe79` in `docs/opencode-analysis.md`).
-- Stable local-directory entrypoint: `server.js` re-exports `dist/index.js` (the V2 loader requires a directory, not a file).
-- `Plugin.define({ id: "codesocks" })`, `ctx.provider.transform` forces `settings.transport = "http"` on selected providers, `ctx.session.hook("http.request", …, { providerID })` rewrites, `experimental.ws.handshake` fails closed (WebSocket does not go through the relay).
+- OpenCode V2 (`>=2.0.15 <3`). Tested against CLI `2.0.15` and the `anomalyco/opencode` `v2` branch (SHA `6bffe79`, pinned in `docs/opencode-analysis.md`).
+- Stable local-directory entrypoint: `server.js` re-exports `dist/index.js`. The V2 loader wants a directory, not a file.
+- `Plugin.define({ id: "codesocks" })` registers the plugin. `ctx.provider.transform` forces `settings.transport = "http"` on selected providers. The provider-scoped `http.request` hook rewrites requests. `experimental.ws.handshake` fails closed; WebSocket doesn't go through the relay.
 
 ## Installation
 
@@ -26,7 +26,7 @@ bun install
 bun run build
 ```
 
-In the project (or global) `opencode.jsonc`, register the package directory:
+Register the package directory in the project (or global) `opencode.jsonc`:
 
 ```jsonc
 {
@@ -34,21 +34,21 @@ In the project (or global) `opencode.jsonc`, register the package directory:
 }
 ```
 
-## Configuration — `codesocks.jsonc`
+## Configuration: `codesocks.jsonc`
 
-Lives next to `opencode.jsonc`/`opencode.json` (directly or inside `.opencode/`) for easy maintenance. Deterministic precedence, no merging:
+The file lives next to `opencode.jsonc`/`opencode.json` (directly or inside `.opencode/`). Lookup order is fixed, no merging:
 
-1. Plugin option `configPath` (relative to `ctx.location.directory`) — must exist.
-2. `$CODESOCKS_CONFIG` — must exist.
+1. Plugin option `configPath` (relative to `ctx.location.directory`). Must exist.
+2. `$CODESOCKS_CONFIG`. Must exist.
 3. Nearest sibling walking up from `directory` to the root: `codesocks.jsonc` next to `opencode.json/jsonc`, directly or in `.opencode/`.
 4. Global: `dirname($OPENCODE_CONFIG)` / `$OPENCODE_CONFIG_DIR` / `$XDG_CONFIG_HOME/opencode` / `<home>/.config/opencode`.
-5. Absent → plugin disabled (empty maps), no error.
+5. Nothing found → plugin stays disabled (empty maps), no error.
 
 Minimal example (`examples/codesocks.example.jsonc`):
 
 ```jsonc
 {
-  "$schema": "../codesocks.schema.json",
+  "$schema": "https://raw.githubusercontent.com/Hallaxius/codesocks/main/codesocks.schema.json",
   "enabled": false, // switch to true after configuring a real proxy
   "proxies": {
     // "socks5h://{env:PROXY_USER}:{env:PROXY_PASS}@127.0.0.1:1080"
@@ -67,34 +67,40 @@ Minimal example (`examples/codesocks.example.jsonc`):
 }
 ```
 
-Rules (fail-closed, never leaking URLs in errors):
+Fail-closed rules (error text never includes URLs):
 
-- `proxies`: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h` schemes; no path/query/fragment/PAC. Secrets only via `{env:NAME}` in proxy URLs; a missing/empty variable is an error.
-- `providers.<id>`: `proxy` must exist in `proxies` (own-key comparison), `allowedOrigins` non-empty, exact `http(s)` origins normalized to `origin` (case/default-port/trailing-slash normalized), no credentials/path.
-- Unknown fields, `__proto__`, invalid JSONC, or an unreadable selected file = `ConfigError`.
-- The `__proto__` key is rejected by scanning the raw text before parsing; internal maps use null prototypes.
+- `proxies`: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`. No path, query, fragment, or PAC. Secrets only via `{env:NAME}` inside proxy URLs. A missing or empty variable is an error.
+- `providers.<id>`: `proxy` must name an entry in `proxies` (own-key comparison). `allowedOrigins` is required and non-empty. Origins must be exact `http(s)`, normalized to `origin` (case, default port, and trailing slash folded). No credentials, no path.
+- Unknown fields, `__proto__`, invalid JSONC, or an unreadable selected file → `ConfigError`.
+- The `__proto__` key gets rejected by scanning the raw text before parsing. Internal maps use null prototypes.
 
 ## Relay security
 
-- HTTP relay on `127.0.0.1` only, ephemeral port; rewrite via random 32-byte single-use tickets, 60 s expiry, 1024 pending cap, method check; invalid/replayed ticket = `403`.
-- Only `allowedOrigins` origins; an unapproved origin errors before any network happens (credentials never leave for the wrong destination).
-- Upstream `3xx` is blocked with a generic `502` (never follows redirects outside the proxy); `429` applies `cooldown` from `Retry-After` (seconds/date, 1 s default, never shortens an existing wait).
-- Hop-by-hop and `proxy-*` headers stripped; status/body/SSE preserved; abort/timeout cancel the upstream socket; explicit agents (`http-proxy-agent`/`https-proxy-agent`/`socks-proxy-agent`) with no `HTTP_PROXY/HTTPS_PROXY/NO_PROXY`.
-- `socks5h` resolves DNS at the proxy (domain ATYP); end-to-end verified TLS, never disabling verification.
+- The relay binds `127.0.0.1` only, on an ephemeral port. Rewrites use random 32-byte single-use tickets: 60 s expiry, 1024 pending cap, method checked. Bad or replayed ticket → `403`.
+- Only `allowedOrigins` get through. An unapproved origin errors before any network happens. Credentials never leave for the wrong destination.
+- Upstream `3xx` gets blocked with a generic `502`. The relay doesn't follow redirects. `429` sets a per-provider `cooldown` from `Retry-After` (seconds or date, 1 s default, never shortens a wait already in effect).
+- Hop-by-hop and `proxy-*` headers get stripped. Status, body, and SSE pass through untouched. Abort and timeout kill the upstream socket. Egress uses explicit agents (`http-proxy-agent` / `https-proxy-agent` / `socks-proxy-agent`). No `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` involved.
+- `socks5h` resolves DNS at the proxy (domain ATYP). TLS stays verified end to end. Verification never gets disabled.
 
 ## Verification
 
 ```bash
+bun run lint           # Markdown in root docs and GitHub templates
 bun run check          # typecheck + build + 37 tests (bun test tests)
-bun run smoke:opencode # brings up fake local SSE origin + proxy and runs isolated `opencode run --standalone`
-bun audit --production # clean — 0 vulnerabilities (the transitive @opentelemetry/core moderate went away upstream with @opencode/plugin 2.0.22)
+bun run smoke:opencode # fake local SSE origin + proxy, then `opencode run --standalone` with temporary config
+bun audit --production # check production dependencies
 npm pack --dry-run     # tarball: dist + server.js + schema + examples + README + LICENSE
 ```
 
-Expected smoke: `{"result":"PASS","proxyHits":2,"upstreamHits":2,"marker":"CODESOCKS_SMOKE_OK"}`.
+Expected smoke output: `{"result":"PASS","proxyHits":2,"upstreamHits":2,"marker":"CODESOCKS_SMOKE_OK"}`.
+
+The transport smoke disables automatic compaction: the mock returns a marker, not a summary.
+See the [test record](docs/opencode-analysis.md#test-record). Matching request counts alone aren't a pass.
+
+The live rotating-proxy check returned HTTP `200` on 3 HTTPS requests, with 3 distinct egress IPs. That confirms rotation for that run, not a guarantee about your proxy.
 
 ## Honest limits
 
-- WebSocket on selected providers is refused (use HTTP). `ctx.generate.text` outside a session does not pass through session hooks.
-- Queue capped at 256 per provider; `503` when the queue is unavailable, generic `502` on transport failure.
-- Current audit: clean (`bun audit --production` with 0 vulnerabilities; the transitive `@opentelemetry/core` moderate was fixed upstream in `@opencode/plugin 2.0.22`). No high direct dependency after swapping the `proxy-agent` umbrella for explicit agents.
+- WebSocket on selected providers gets refused. Use HTTP. `ctx.generate.text` outside a session never sees session hooks.
+- Queue caps at 256 per provider. `503` when the queue is unavailable, generic `502` on transport failure.
+- Audit snapshot (2026-10-06): `bun audit --production` reported 0 vulnerabilities. Run it again before shipping. CodeSocks uses explicit proxy agents instead of the `proxy-agent` umbrella.

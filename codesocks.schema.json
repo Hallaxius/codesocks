@@ -1,33 +1,32 @@
 {
-  "$id": "https://hallaxius.dev/codesocks.schema.json",
+  "$id": "https://raw.githubusercontent.com/Hallaxius/codesocks/main/codesocks.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "CodeSocks schema: English comments and descriptions. Example ships disabled by default to avoid exposing a placeholder proxy.",
   "title": "CodeSocks configuration",
-  "description": "codesocks.jsonc file: accepts comments and trailing commas. Fail-closed on invalid syntax or unknown fields.",
+  "description": "Configure your provider routes in codesocks.jsonc. Comments and trailing commas are allowed. Invalid syntax and unknown fields stop loading.",
   "type": "object",
   "additionalProperties": false,
   "required": ["proxies", "providers"],
   "properties": {
     "$schema": {
       "type": "string",
-      "description": "Schema path or URL (optional, documentation only)."
+      "description": "Optional schema path or URL for your editor. It doesn't change routing."
     },
     "enabled": {
       "type": "boolean",
       "default": true,
-      "description": "When false, the plugin stays disabled and uses no proxy."
+      "description": "Set false to disable CodeSocks. No requests go through its proxies."
     },
     "proxies": {
       "type": "object",
-      "description": "Name -> proxy URL map. Secrets via {env:NAME}; never log the URL.",
+      "description": "Name your proxies here. Use {env:NAME} for credentials; keep proxy URLs out of logs.",
       "additionalProperties": {
         "type": "string",
-        "description": "http, https, socks4, socks4a, socks5, socks5h schemes; no path, query, or fragment."
+        "description": "Proxy URL using http, https, socks4, socks4a, socks5, or socks5h. No path, query, or fragment."
       }
     },
     "providers": {
       "type": "object",
-      "description": "Provider -> egress route map.",
+      "description": "Choose a proxy and allowed origins for each provider ID.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
@@ -35,12 +34,12 @@
         "properties": {
           "proxy": {
             "type": "string",
-            "description": "Name of a proxy declared in proxies."
+            "description": "Pick a name from proxies."
           },
           "allowedOrigins": {
             "type": "array",
             "minItems": 1,
-            "description": "Exact allowed http(s) origins (required, no path).",
+            "description": "Required list of exact HTTP or HTTPS origins. No credentials or path beyond a root slash.",
             "items": { "type": "string" }
           },
           "maxConcurrent": {
@@ -48,28 +47,28 @@
             "minimum": 1,
             "maximum": 64,
             "default": 2,
-            "description": "Maximum simultaneous connections (default 2)."
+            "description": "Cap in-flight requests per provider, including active streams. Default: 2."
           },
           "minIntervalMs": {
             "type": "integer",
             "minimum": 0,
             "maximum": 60000,
             "default": 0,
-            "description": "Minimum interval between requests in ms (default 0)."
+            "description": "Space request starts by at least this many milliseconds. Default: 0."
           },
           "timeoutMs": {
             "type": "integer",
             "minimum": 1,
             "maximum": 3600000,
             "default": 120000,
-            "description": "Per-request timeout in ms (default 120000)."
+            "description": "Stop an upstream request after this many milliseconds. Default: 120000."
           },
           "maxQueueWaitMs": {
             "type": "integer",
             "minimum": 1,
             "maximum": 3600000,
             "default": 120000,
-            "description": "Maximum queue wait in ms (default 120000)."
+            "description": "Stop waiting for a provider slot after this many milliseconds. Default: 120000."
           }
         }
       }

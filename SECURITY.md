@@ -1,17 +1,17 @@
-# Security Policy
+# Report a security issue
 
-## Supported Versions
+## Supported versions
 
-Only the latest version published on npm (`@hallaxius/codesocks`) receives
-security fixes. Upgrade before reporting.
+I support security fixes for the latest npm version of `@hallaxius/codesocks`.
+Upgrade before reporting.
 
-## Reporting a Vulnerability
+## Keep the report private
 
 Report vulnerabilities **privately** through
 [GitHub security advisories](https://github.com/Hallaxius/codesocks/security/advisories/new).
-Do not open a public issue for a suspected vulnerability.
+Don't open a public issue for a suspected vulnerability.
 
-Include:
+Send enough detail for me to reproduce it:
 
 - a description of the issue and its impact (e.g. credential leak, egress
   bypass, allow-list bypass);
@@ -19,4 +19,4 @@ Include:
   credentials, provider keys, or customer traffic;
 - the package version, runtime (Node.js/Bun), and proxy scheme involved.
 
-We will acknowledge receipt, investigate, and coordinate a fix and release.
+I'll acknowledge the report, investigate it, and coordinate a fix and release.
