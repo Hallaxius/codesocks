@@ -87,7 +87,7 @@ Regras (falha fechada, sem vazar URL nos erros):
 ```bash
 bun run check          # typecheck + build + 37 testes (bun test tests)
 bun run smoke:opencode # sobe origem SSE + proxy fakes locais e roda `opencode run --standalone` isolado
-bun audit --production # 1 moderado transitivo conhecido: @opentelemetry/core 2.6.1 via @opencode/plugin (fora do range corrigível)
+bun audit --production # limpo — 0 vulnerabilidades (o moderado transitivo do @opentelemetry/core saiu com o @opencode/plugin 2.0.22)
 npm pack --dry-run     # tarball: dist + server.js + LICENSE + schema + examples + README
 ```
 
@@ -97,4 +97,4 @@ Smoke esperado: `{"result":"PASS","proxyHits":2,"upstreamHits":2,"marker":"CODES
 
 - WebSocket dos provedores selecionados é recusado (use HTTP). `ctx.generate.text` fora de sessão não passa pelos hooks de sessão.
 - Fila limitada a 256 por provedor; `503` com fila indisponível, `502` genérico em falha de transporte.
-- Auditoria atual: resta 1 vulnerabilidade moderada transitiva do SDK (`@opentelemetry/core 2.6.1`, `bun audit fix` bloqueado pelo range do dependente). Sem dependência alta direta após troca do `proxy-agent` guarda-chuva por agentes explícitos.
+- Auditoria atual: limpa (`bun audit --production` com 0 vulnerabilidades; o moderado transitivo `@opentelemetry/core` foi resolvido a montante no `@opencode/plugin 2.0.22`). Sem dependência alta direta após troca do `proxy-agent` guarda-chuva por agentes explícitos.
