@@ -1,17 +1,20 @@
 {
-  // CodeSocks example — starts disabled (enabled false) so no placeholder
-  // proxy is ever exposed. Switch to true only after configuring a real proxy.
-  "$schema": "../codesocks.schema.json",
+  // Set up your proxy before switching enabled to true.
+  "$schema": "https://raw.githubusercontent.com/Hallaxius/codesocks/main/codesocks.schema.json",
   "enabled": false,
   "proxies": {
-    // Example local proxy (socks5h on localhost). Use {env:NAME} for credentials:
+    // Replace this local proxy with yours. Keep credentials in {env:NAME}:
     // "socks5h://{env:PROXY_USER}:{env:PROXY_PASS}@127.0.0.1:1080"
     "local": "socks5h://127.0.0.1:1080"
   },
   "providers": {
-    // Each provider points at a proxy and lists exact allowed origins.
+    // Pick a proxy for each provider. Allow only the origins it needs.
     "openai": {
       "proxy": "local",
+      // To enable failover, first add a named "backup" proxy above:
+      // "rotation": { "enabled": true, "proxies": ["backup"], "cooldownMs": 30000, "failureThreshold": 2 },
+      // Add "rotateOnRateLimit": true inside rotation to switch after HTTP 429.
+      // Retry-After still blocks the provider; no request is replayed.
       "allowedOrigins": ["https://api.openai.com"],
       "maxConcurrent": 2,
       "minIntervalMs": 0,

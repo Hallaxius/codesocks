@@ -1,16 +1,16 @@
 name: Bug report
-description: Report a reproducible issue with codesocks.
+description: Show me how to reproduce a CodeSocks bug.
 title: "bug: "
 body:
   - type: markdown
     attributes:
       value: |
-        Share a minimal reproduction. Never include real proxy credentials, provider keys, secrets, or customer data — use synthetic values (e.g. `socks5h://user:pass@127.0.0.1:1080`).
+        Give me the smallest reproduction you can. Keep real proxy credentials, provider keys, secrets, and customer data out of it. Use synthetic values such as `socks5h://user:pass@127.0.0.1:1080`.
   - type: input
     id: version
     attributes:
-      label: codesocks version
-      description: Which package version are you using?
+      label: CodeSocks version
+      description: Enter the package version you ran.
       placeholder: 0.1.0
     validations:
       required: true
@@ -28,7 +28,7 @@ body:
     id: reproduction
     attributes:
       label: Steps to reproduce
-      description: Include the provider, proxy scheme, a minimal `codesocks.jsonc` (redacted), and a minimal code sample.
+      description: Include the provider, proxy scheme, a redacted `codesocks.jsonc`, and the smallest code sample that triggers it.
       render: javascript
     validations:
       required: true
@@ -42,6 +42,6 @@ body:
     id: actual
     attributes:
       label: Actual behavior
-      description: Include the error message or observed result, with sensitive values removed.
+      description: Paste the error or describe what happened. Remove sensitive values first.
     validations:
       required: true

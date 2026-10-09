@@ -22,7 +22,8 @@ export class Gate {
   private queue: Waiter[] = [];
   private timer?: ReturnType<typeof setTimeout>;
   private closed = false;
-  constructor(private readonly route: Route) {}
+  constructor(private route: Route) {}
+  configure(route: Route): void { this.route = route; this.pump(); }
 
   acquire(signal: AbortSignal): Promise<() => void> {
     if (this.closed || signal.aborted) return Promise.reject(new Error("codesocks: request cancelled"));

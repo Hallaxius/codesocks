@@ -25,6 +25,7 @@ test("V2 setup scopes HTTP and websocket hooks and disposes registrations", asyn
       session: { hook: async (name: string, callback: (event: { request: Request }) => void, options: { providerID: string }) => {
         hooks.push({ name, callback, provider: options.providerID }); return { dispose: async () => { disposed++; } };
       } },
+      rpc: { register: async () => ({ dispose: async () => { disposed++; } }) },
     } as unknown as Plugin.Context;
     const cleanup = await plugin.setup(context);
     expect(hooks.map((hook) => [hook.name, hook.provider])).toEqual([
@@ -36,6 +37,6 @@ test("V2 setup scopes HTTP and websocket hooks and disposes registrations", asyn
     const event = { request: new Request("https://api.openai.com/v1/responses") };
     hooks[0]!.callback(event); expect(new URL(event.request.url).hostname).toBe("127.0.0.1");
     expect(() => hooks[1]!.callback(event)).toThrow("WebSocket");
-    await cleanup?.(); expect(disposed).toBe(3);
+    await cleanup?.(); expect(disposed).toBe(4);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

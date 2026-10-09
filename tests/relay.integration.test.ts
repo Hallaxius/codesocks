@@ -502,6 +502,52 @@ test("SOCKS5 auth succeeds with credentials and fails closed without them", asyn
   expect(await denied.text()).toBe("codesocks: proxy transport failed");
 });
 
+test("SOCKS5 authentication rejection rotates to authenticated backup without replay", async () => {
+  const origin = await startHttpOrigin();
+  const socks = await startSocks5Stub(() => ({ host: "127.0.0.1", port: origin.port }), { user: "tester", pass: "correct" });
+  const config = configFor(`socks5h://tester:wrong@127.0.0.1:${socks.port}`, [origin.base], {
+    rotation: { enabled: true, proxies: ["backup"], cooldownMs: 10000 },
+  });
+  config.proxies.backup = socks.url;
+  const relay = await createRelay(config); trackRelay(relay);
+  const rejected = await fetch(relay.rewrite(new Request(origin.base, { method: "POST", body: "prompt" }), "test"));
+  expect(rejected.status).toBe(502); await rejected.text();
+  expect(origin.state.hits).toBe(0); expect(socks.state.authAttempts).toEqual(["tester:wrong"]);
+  const accepted = await fetch(relay.rewrite(new Request(origin.base, { method: "POST", body: "prompt" }), "test"));
+  expect(accepted.status).toBe(200); await accepted.text(); expect(origin.state.hits).toBe(1);
+  expect(socks.state.authAttempts).toEqual(["tester:wrong", "tester:correct"]);
+  expect(relay.status().providers[0]!.proxy).toBe("backup");
+  expect(JSON.stringify(relay.status())).not.toContain("correct");
+});
+
+test("HTTPS CONNECT authentication failure rotates to trusted authenticated backup on Node", async () => {
+  const origin = await startHttpsOrigin();
+  const proxy = await startConnectProxy({ user: "tester", pass: "correct" });
+  const relayModule = pathToFileURL(join(import.meta.dir, "../dist/src/relay.js")).href;
+  const script = `import { createRelay } from ${JSON.stringify(relayModule)};
+    const origin = process.env.TEST_ORIGIN_URL;
+    const config = { enabled: true, proxies: { bad: process.env.TEST_BAD_PROXY, good: process.env.TEST_GOOD_PROXY },
+      providers: { test: { proxy: 'bad', allowedOrigins: [origin], maxConcurrent: 2, minIntervalMs: 0, timeoutMs: 5000, maxQueueWaitMs: 5000,
+        rotation: { enabled: true, proxies: ['good'], cooldownMs: 10000 } } } };
+    const relay = await createRelay(config);
+    try {
+      const first = await fetch(relay.rewrite(new Request(origin, { method: 'POST', body: 'prompt' }), 'test'));
+      if (first.status !== 502) throw Error('bad proxy did not fail'); await first.text();
+      if (relay.status().providers[0].proxy !== 'good') throw Error('did not rotate');
+      const next = await fetch(relay.rewrite(new Request(origin), 'test'));
+      if (next.status !== 200 || await next.text() !== 'secure-hello') throw Error('backup failed');
+      console.log('connect-rotation-ok');
+    } finally { await relay.close(); }`;
+  const stdout = await new Promise<string>((resolve, reject) => {
+    execFile("node", ["--input-type=module", "-e", script], { timeout: 15000, env: { ...process.env,
+      NODE_EXTRA_CA_CERTS: join(FIXTURE_DIR, "test-cert.pem"), TEST_ORIGIN_URL: origin.base,
+      TEST_BAD_PROXY: `http://tester:wrong@127.0.0.1:${proxy.port}`, TEST_GOOD_PROXY: proxy.url,
+    } }, (error, out, stderr) => { if (error) reject(Error(stderr)); else resolve(out); });
+  });
+  expect(stdout).toContain("connect-rotation-ok"); expect(origin.state.hits).toBe(1);
+  expect(proxy.state.authSeen).toEqual([`Basic ${Buffer.from("tester:wrong").toString("base64")}`, `Basic ${Buffer.from("tester:correct").toString("base64")}`]);
+});
+
 test("dead proxy fails closed and origin never receives the request", async () => {
   const origin = await startHttpOrigin();
   const dead = createNetServer(() => {});

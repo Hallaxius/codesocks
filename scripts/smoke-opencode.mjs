@@ -34,6 +34,8 @@ try {
   const proxyURL = `http://127.0.0.1:${proxy.address().port}`;
   await writeFile(join(directory, "opencode.jsonc"), JSON.stringify({
     model: "codesocks-smoke/mock",
+    // The mock returns a marker, not a compaction summary. This smoke tests transport only.
+    compaction: { auto: false },
     plugins: [{ package: pathToFileURL(root).href }],
     providers: { "codesocks-smoke": {
       name: "CodeSocks isolated mock", env: ["CODESOCKS_SMOKE_KEY"],
