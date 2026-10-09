@@ -11,6 +11,10 @@
     // Pick a proxy for each provider. Allow only the origins it needs.
     "openai": {
       "proxy": "local",
+      // To enable failover, first add a named "backup" proxy above:
+      // "rotation": { "enabled": true, "proxies": ["backup"], "cooldownMs": 30000, "failureThreshold": 2 },
+      // Add "rotateOnRateLimit": true inside rotation to switch after HTTP 429.
+      // Retry-After still blocks the provider; no request is replayed.
       "allowedOrigins": ["https://api.openai.com"],
       "maxConcurrent": 2,
       "minIntervalMs": 0,

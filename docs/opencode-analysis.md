@@ -154,3 +154,69 @@ There is no WebSocket proxy fallback.
 OpenCode owns its retry policy, including retryable `UnknownProvider` failures.
 CodeSocks' pacing and cooldowns don't replace the recorded `recurs(10)`,
 15 min retry ceiling, or 3-timeout limit.
+
+## Proxy failover and TUI update (2026-10-09)
+
+The follow-up inspection pinned the `v2` branch at
+`eefe85d2572363b62d131128bd4bdb70294632ac`. The default `dev` branch is a different
+code line and was not used as the V2 API contract. Context7 could not return
+documentation because its monthly quota was exhausted; official V2 documentation
+and source were used instead.
+
+Sources checked:
+
+- [CLI plugin API](https://opencode.ai/v2/docs/build/plugins/cli): keymap command
+  registration, palette/slash discovery, select dialogs, toasts, lifecycle.
+- [RPC API](https://opencode.ai/v2/docs/build/plugins/rpc): server registration and
+  calls through the TUI's connected client, without direct loopback admin access.
+- [TUI context source](https://github.com/anomalyco/opencode/blob/eefe85d2572363b62d131128bd4bdb70294632ac/packages/plugin/src/tui/context.ts):
+  `keymap.layer`, `ui.dialog.select`, optional plugin `location`, client RPC.
+- [Server loader](https://github.com/anomalyco/opencode/blob/eefe85d2572363b62d131128bd4bdb70294632ac/packages/core/src/plugin/module.ts):
+  `Host.resolve` returns server and TUI entrypoints.
+- [TUI discovery](https://github.com/anomalyco/opencode/blob/eefe85d2572363b62d131128bd4bdb70294632ac/packages/tui/src/plugin/discovery.ts):
+  local plugin targets are directories.
+
+The installed `@opencode/plugin@2.0.22` declarations require RPC `input` and
+`events`, even when empty; the implementation supplies explicit empty schemas
+and an empty events map. Typechecking uses those installed declarations.
+
+CodeSocks exposes names-only `status` and `select` RPC methods. Manual selection
+is server runtime state scoped to the plugin location, not a client filesystem
+edit. Global CLI plugins use the open session's location. Commands use that same
+location on both calls. No proxy credentials cross
+the RPC boundary. Automatic failover uses a provider-local cooldown pool;
+generation checks prevent late failures from overwriting newer manual choices.
+
+Failover intentionally affects subsequent requests, including OpenCode retries.
+It does not replay a failed POST or restart a stream. Transport errors cannot
+always distinguish a bad proxy from a failed origin. HTTP provider statuses are
+not failover signals, except proxy authentication status `407`. No retry hook
+overrides OpenCode's policy, and pool exhaustion never permits direct egress.
+
+The current workspace's config, example, and README already used the GitHub raw
+schema URL before this change. No occurrence of the reported `node_modules` path
+was found in their available Git history. A local schema path is useful offline
+and tracks an installed package version, but can be absent when OpenCode uses
+its own plugin cache. The GitHub `main` URL can run ahead of installed releases.
+
+## Missing slash/palette commands in CodeSocks 0.1.1
+
+The installed OpenCode CLI reports version 2.0.24. CodeSocks 0.1.1 registers its
+TUI command layer without a `mode`. This defaults to `base`, not `global`.
+OpenCode's slash autocomplete pushes `autocomplete`; dialogs push `modal`.
+Both autocomplete and the command palette read reachable commands, so the
+base-only layer is filtered out even when the plugin successfully loads.
+
+Version-matched source evidence:
+
+- [Keymap defaults and reachable command query](https://github.com/anomalyco/opencode/blob/v2.0.24/packages/tui/src/context/keymap.tsx#L204-L216)
+- [Autocomplete mode](https://github.com/anomalyco/opencode/blob/v2.0.24/packages/tui/src/component/prompt/autocomplete.tsx#L94-L100)
+- [Palette command query](https://github.com/anomalyco/opencode/blob/v2.0.24/packages/tui/src/component/command-palette.tsx#L14-L18)
+- [Dialog modal mode](https://github.com/anomalyco/opencode/blob/v2.0.24/packages/tui/src/ui/dialog.tsx#L88-L96)
+
+Fix: register the CodeSocks layer with `mode: "global"`. The regression in
+`tests/tui.test.ts` failed with `undefined` before the change and passes after it.
+It tests the registration contract, not rendered terminal interaction. The
+published/cache copies of 0.1.1 remain unchanged; rebuilding this checkout does
+not update a configuration pinned to the npm version. Release a patched version
+or explicitly load the built local checkout before verifying the visible menu.

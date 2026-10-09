@@ -1,106 +1,157 @@
-# CodeSocks: proxy interceptor for OpenCode V2
+# CodeSocks for OpenCode V2
 
 [![CI](https://github.com/Hallaxius/codesocks/actions/workflows/ci.yaml/badge.svg)](https://github.com/Hallaxius/codesocks/actions/workflows/ci.yaml)
 [![npm version](https://img.shields.io/npm/v/@hallaxius/codesocks.svg)](https://www.npmjs.com/package/@hallaxius/codesocks)
 [![license: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](./LICENSE)
-[![Node.js >= 24](https://img.shields.io/badge/node-%3E%3D24-brightgreen.svg)](https://nodejs.org)
 
-Built by [Hallaxius](https://github.com/Hallaxius).
+Route selected OpenCode providers through HTTP, HTTPS, or SOCKS proxies without changing `baseURL`. CodeSocks preserves request bodies, provider authentication, and Server-Sent Events (SSE) streaming. It supports per-provider pacing, automatic proxy failover, and manual selection in the terminal UI.
 
-I built CodeSocks to pick a proxy per provider without changing `baseURL`. It's a native OpenCode V2 plugin (`@opencode/plugin` 2.x). You choose the providers and the proxy. Request bodies, provider credentials, and SSE streaming stay intact.
+Requires OpenCode V2 (`>=2.0.15 <3`) and Node.js 24 or newer. A proxy changes your egress IP, not your account quotas.
 
-Route: `prompt → provider http.request hook → local 127.0.0.1 relay → your proxy → original baseURL`.
+## Install with Bun or npm
 
-> A proxy changes your egress IP. It doesn't erase account or plan quotas. CodeSocks paces requests per provider with `maxConcurrent`, `minIntervalMs`, and `429` cooldowns honoring `Retry-After`.
+Install the published package in your project with either package manager.
 
-## Compatibility
+With [Bun](https://bun.com/docs/pm/cli/add):
 
-- OpenCode V2 (`>=2.0.15 <3`). Tested against CLI `2.0.15` and the `anomalyco/opencode` `v2` branch (SHA `6bffe79`, pinned in `docs/opencode-analysis.md`).
-- Stable local-directory entrypoint: `server.js` re-exports `dist/index.js`. The V2 loader wants a directory, not a file.
-- `Plugin.define({ id: "codesocks" })` registers the plugin. `ctx.provider.transform` forces `settings.transport = "http"` on selected providers. The provider-scoped `http.request` hook rewrites requests. `experimental.ws.handshake` fails closed; WebSocket doesn't go through the relay.
+```bash
+bun add @hallaxius/codesocks
+```
 
-## Installation
+With [npm](https://docs.npmjs.com/cli/v11/commands/npm-install):
+
+```bash
+npm install @hallaxius/codesocks
+```
+
+Add the installed directory to your project's `opencode.jsonc`, preserving any existing plugins:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [{ "package": "./node_modules/@hallaxius/codesocks" }]
+}
+```
+
+> The published `0.1.0` package does not include the TUI entrypoint. Use a local checkout for the menu and unreleased features described below.
+
+### Use a local checkout
+
+In the CodeSocks repository, install dependencies and build with one of these alternatives.
+
+With Bun:
 
 ```bash
 bun install
 bun run build
 ```
 
-Register the package directory in the project (or global) `opencode.jsonc`:
+With npm:
+
+```bash
+npm install
+npm run build
+```
+
+Register the repository directory, not `server.js`, in your project's or global `opencode.jsonc`:
 
 ```jsonc
 {
-  "plugins": [{ "package": "file:///path/to/codesocks" }]
+  "plugins": [{ "package": "file:///absolute/path/to/codesocks" }]
 }
 ```
 
-## Configuration: `codesocks.jsonc`
+On Windows, use a URL such as `file:///C:/Projects/codesocks`. Restart OpenCode after registering the plugin.
 
-The file lives next to `opencode.jsonc`/`opencode.json` (directly or inside `.opencode/`). Lookup order is fixed, no merging:
+## Configure your proxies
 
-1. Plugin option `configPath` (relative to `ctx.location.directory`). Must exist.
-2. `$CODESOCKS_CONFIG`. Must exist.
-3. Nearest sibling walking up from `directory` to the root: `codesocks.jsonc` next to `opencode.json/jsonc`, directly or in `.opencode/`.
-4. Global: `dirname($OPENCODE_CONFIG)` / `$OPENCODE_CONFIG_DIR` / `$XDG_CONFIG_HOME/opencode` / `<home>/.config/opencode`.
-5. Nothing found → plugin stays disabled (empty maps), no error.
-
-Minimal example (`examples/codesocks.example.jsonc`):
+Create `codesocks.jsonc` next to `opencode.jsonc` or `opencode.json`. Replace the example proxy address, set the environment variables on the OpenCode server, then change `enabled` to `true`.
 
 ```jsonc
 {
   "$schema": "https://raw.githubusercontent.com/Hallaxius/codesocks/main/codesocks.schema.json",
-  "enabled": false, // switch to true after configuring a real proxy
+  "enabled": false,
   "proxies": {
-    // "socks5h://{env:PROXY_USER}:{env:PROXY_PASS}@127.0.0.1:1080"
-    "local": "socks5h://127.0.0.1:1080"
+    "primary": "socks5h://{env:PROXY_USER}:{env:PROXY_PASS}@proxy.example:1080"
   },
   "providers": {
     "openai": {
-      "proxy": "local",
-      "allowedOrigins": ["https://api.openai.com"],
-      "maxConcurrent": 2,
-      "minIntervalMs": 0,
-      "timeoutMs": 120000,
-      "maxQueueWaitMs": 120000
+      "proxy": "primary",
+      "allowedOrigins": ["https://api.openai.com"]
     }
   }
 }
 ```
 
-Fail-closed rules (error text never includes URLs):
+Use provider IDs from your OpenCode configuration. Each route needs a named proxy and exact HTTP or HTTPS `allowedOrigins`, without paths or credentials. Supported proxy schemes are `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`; `socks5h` resolves DNS at the proxy. Missing environment variables, unknown fields, and invalid configuration stop loading.
 
-- `proxies`: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`. No path, query, fragment, or PAC. Secrets only via `{env:NAME}` inside proxy URLs. A missing or empty variable is an error.
-- `providers.<id>`: `proxy` must name an entry in `proxies` (own-key comparison). `allowedOrigins` is required and non-empty. Origins must be exact `http(s)`, normalized to `origin` (case, default port, and trailing slash folded). No credentials, no path.
-- Unknown fields, `__proto__`, invalid JSONC, or an unreadable selected file → `ConfigError`.
-- The `__proto__` key gets rejected by scanning the raw text before parsing. Internal maps use null prototypes.
+Optional controls apply per provider:
 
-## Relay security
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `maxConcurrent` | `2` | Limit active requests, including streams |
+| `minIntervalMs` | `0` | Space request starts |
+| `timeoutMs` | `120000` | Limit upstream request duration |
+| `maxQueueWaitMs` | `120000` | Limit waiting for a provider slot |
 
-- The relay binds `127.0.0.1` only, on an ephemeral port. Rewrites use random 32-byte single-use tickets: 60 s expiry, 1024 pending cap, method checked. Bad or replayed ticket → `403`.
-- Only `allowedOrigins` get through. An unapproved origin errors before any network happens. Credentials never leave for the wrong destination.
-- Upstream `3xx` gets blocked with a generic `502`. The relay doesn't follow redirects. `429` sets a per-provider `cooldown` from `Retry-After` (seconds or date, 1 s default, never shortens a wait already in effect).
-- Hop-by-hop and `proxy-*` headers get stripped. Status, body, and SSE pass through untouched. Abort and timeout kill the upstream socket. Egress uses explicit agents (`http-proxy-agent` / `https-proxy-agent` / `socks-proxy-agent`). No `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` involved.
-- `socks5h` resolves DNS at the proxy (domain ATYP). TLS stays verified end to end. Verification never gets disabled.
+Configuration lookup uses the first match, without merging: plugin option `configPath`, `CODESOCKS_CONFIG`, the nearest sibling configuration up the directory tree, then OpenCode's global configuration directories. Set `options.configPath` in the plugin registration when you need an explicit file. Without a configuration file, CodeSocks stays disabled.
 
-## Verification
+The schema URL enables editor validation only. For offline use, set `$schema` to `./node_modules/@hallaxius/codesocks/codesocks.schema.json` if that file exists. The GitHub `main` schema tracks development; pin a tag or commit to match a release.
 
-```bash
-bun run lint           # Markdown in root docs and GitHub templates
-bun run check          # typecheck + build + 37 tests (bun test tests)
-bun run smoke:opencode # fake local SSE origin + proxy, then `opencode run --standalone` with temporary config
-bun audit --production # check production dependencies
-npm pack --dry-run     # tarball: dist + server.js + schema + examples + README + LICENSE
+## Enable automatic failover
+
+Add another named proxy to `proxies`, then add `rotation` to the provider route:
+
+```jsonc
+"rotation": {
+  "enabled": true,
+  "proxies": ["backup"],
+  "cooldownMs": 30000,
+  "failureThreshold": 2
+}
 ```
 
-Expected smoke output: `{"result":"PASS","proxyHits":2,"upstreamHits":2,"marker":"CODESOCKS_SMOKE_OK"}`.
+The pool starts with the provider's `proxy`, followed by the ordered fallback names. Rotation defaults to off; cooldown defaults to 30 seconds and `failureThreshold` defaults to 1. Set the threshold to 2 or 3 to tolerate isolated transport failures.
 
-The transport smoke disables automatic compaction: the mock returns a marker, not a summary.
-See the [test record](docs/opencode-analysis.md#test-record). Matching request counts alone aren't a pass.
+Transport errors, timeouts, interrupted upstream streams, and HTTP `407` count toward failover. A completed non-`429` response resets the failure count. Provider HTTP errors (`401`, `5xx`), redirects, queue failures, and client cancellation do not trigger rotation. Network failures can originate at either the proxy or the provider.
 
-The live rotating-proxy check returned HTTP `200` on 3 HTTPS requests, with 3 distinct egress IPs. That confirms rotation for that run, not a guarantee about your proxy.
+For HTTP `429`, set `"rotateOnRateLimit": true` inside an enabled `rotation` block. This opt-in defaults to false and switches the proxy for subsequent requests immediately, independently of `failureThreshold`. The limited proxy stays excluded for at least the longer of `cooldownMs` and `Retry-After`. Provider-wide `Retry-After` backoff still applies, including after manual selection or reload; changing an IP does not prove that an account or model limit has cleared. Missing or invalid `Retry-After` uses a one-second backoff. The original `429` response, headers, and body are forwarded unchanged.
 
-## Honest limits
+**CodeSocks never replays a failed request or restarts an SSE stream.** Rotation affects subsequent requests, including retries initiated by OpenCode. An exhausted pool returns `503`, never a direct connection. IP rotation behind a single proxy gateway remains the proxy service's responsibility.
 
-- WebSocket on selected providers gets refused. Use HTTP. `ctx.generate.text` outside a session never sees session hooks.
-- Queue caps at 256 per provider. `503` when the queue is unavailable, generic `502` on transport failure.
-- Audit snapshot (2026-10-06): `bun audit --production` reported 0 vulnerabilities. Run it again before shipping. CodeSocks uses explicit proxy agents instead of the `proxy-agent` umbrella.
+## Select a proxy or reload configuration
+
+Run `/codesocks`, or open the command palette with `Ctrl+P` and choose **CodeSocks: choose provider proxy**. The menu shows the selected proxy, consecutive failures, cooldowns, and pool exhaustion. Reopen it to refresh those values; URLs and credentials stay hidden.
+
+After choosing a provider and proxy, select one of these options:
+
+- **Use temporarily**: apply the choice until configuration or plugin reload
+- **Save as default**: update the selected JSONC file and reload it, preserving comments and `{env:...}` references
+
+Escape cancels without changes. Manual selection clears the chosen proxy's cooldown; automatic rotation remains enabled if configured. Active streams keep their original proxy.
+
+Use `/codesocks-reload` or **Reload configuration** in the menu after editing the file. Reload is explicit, not automatic. Invalid configuration or a deleted selected file leaves previous routing in place. Successful reload resets temporary choices and failure counters, while active streams, provider concurrency limits, and `429` cooldowns remain intact.
+
+Saving writes to the connected OpenCode **server**, including inherited files shared with other projects. Avoid editing the file during a save. If saving succeeds but applying it fails, fix the cause and reload; the file remains saved. Remove a stale `.codesocks-lock` only after confirming no writer is active.
+
+## Routing limits and security
+
+CodeSocks routes session HTTP requests through a loopback relay with single-use tickets and verified TLS:
+
+- Only configured origins are allowed; upstream redirects are blocked
+- Selected providers use HTTP; WebSocket requests are refused
+- Provider `429` responses respect `Retry-After` across proxy changes and reloads
+- Transport failures return `502` or close an active stream; unavailable queues return `503`
+- Calls to `ctx.generate.text` outside a session are not intercepted
+
+## Development checks
+
+Run these checks from the repository. The test and smoke scripts require Bun; the smoke also requires an installed OpenCode V2 CLI.
+
+```bash
+bun run lint
+bun run check
+bun run smoke:opencode
+```
+
+See the [OpenCode integration analysis](docs/opencode-analysis.md) for source references and test records.

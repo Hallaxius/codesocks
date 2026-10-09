@@ -1,5 +1,5 @@
 import { parse, printParseErrorCode, visit } from "jsonc-parser";
-import type { CodeSocksConfig, Route } from "./types.js";
+import type { CodeSocksConfig, Route, Rotation } from "./types.js";
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -20,6 +20,7 @@ const ENV_TOKEN = /\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g;
 const TOP_KEYS = new Set(["$schema", "enabled", "proxies", "providers"]);
 const ROUTE_KEYS = new Set([
   "proxy",
+  "rotation",
   "allowedOrigins",
   "maxConcurrent",
   "minIntervalMs",
@@ -94,6 +95,30 @@ function assertOrigin(provider: string, raw: unknown): string {
   return u.origin;
 }
 
+function rotationFor(id: string, raw: unknown, primary: string, proxies: Record<string, string>): Rotation | undefined {
+  if (raw === undefined) return;
+  if (!isRecord(raw)) throw new ConfigError(`invalid rotation for "${id}"`);
+  for (const key of Object.keys(raw)) {
+    if (!["enabled", "proxies", "cooldownMs", "failureThreshold", "rotateOnRateLimit"].includes(key)) throw new ConfigError(`unknown rotation field for "${id}"`);
+  }
+  const enabled = raw.enabled === undefined ? false : raw.enabled;
+  if (typeof enabled !== "boolean") throw new ConfigError(`invalid rotation.enabled for "${id}"`);
+  if (raw.rotateOnRateLimit !== undefined && typeof raw.rotateOnRateLimit !== "boolean") throw new ConfigError(`invalid rotation.rotateOnRateLimit for "${id}"`);
+  if (!Array.isArray(raw.proxies) || raw.proxies.length === 0 || raw.proxies.length > 64) {
+    throw new ConfigError(`invalid rotation.proxies for "${id}"`);
+  }
+  const names: string[] = [];
+  for (const name of raw.proxies) {
+    if (typeof name !== "string" || !Object.hasOwn(proxies, name) || name === primary || names.includes(name)) {
+      throw new ConfigError(`invalid rotation proxy for "${id}"`);
+    }
+    names.push(name);
+  }
+  return { enabled, proxies: names, cooldownMs: raw.cooldownMs === undefined ? 30000 : intIn(`${id}.rotation.cooldownMs`, raw.cooldownMs, 1, 3_600_000),
+    ...(raw.failureThreshold === undefined ? {} : { failureThreshold: intIn(`${id}.rotation.failureThreshold`, raw.failureThreshold, 1, 64) }),
+    ...(raw.rotateOnRateLimit === undefined ? {} : { rotateOnRateLimit: raw.rotateOnRateLimit }) };
+}
+
 /** Validates an already-parsed JSONC object; never includes URLs or original text in errors. */
 export function validateDocument(doc: unknown, env: NodeJS.ProcessEnv): CodeSocksConfig {
   if (!isRecord(doc)) throw new ConfigError("invalid config document");
@@ -133,6 +158,8 @@ export function validateDocument(doc: unknown, env: NodeJS.ProcessEnv): CodeSock
       timeoutMs: raw["timeoutMs"] === undefined ? 120_000 : intIn(`${id}.timeoutMs`, raw["timeoutMs"], 1, 3_600_000),
       maxQueueWaitMs: raw["maxQueueWaitMs"] === undefined ? 120_000 : intIn(`${id}.maxQueueWaitMs`, raw["maxQueueWaitMs"], 1, 3_600_000),
     };
+    const rotation = rotationFor(id, raw.rotation, proxy, proxies);
+    if (rotation) providers[id]!.rotation = rotation;
   }
   return { enabled, proxies, providers };
 }

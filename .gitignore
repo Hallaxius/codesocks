@@ -30,6 +30,11 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # OpenCode local service state (databases, locks) — never commit
 .opencode/omo/
 
+# Local proxy credentials and machine-specific plugin configuration
+/codesocks.jsonc
+/opencode.jsonc
+/omo.jsonc
+
 # IntelliJ based IDEs
 .idea
 

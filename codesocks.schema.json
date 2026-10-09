@@ -36,6 +36,46 @@
             "type": "string",
             "description": "Pick a name from proxies."
           },
+          "rotation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["proxies"],
+            "description": "Provider-local failover for transport errors and proxy authentication (407), with optional HTTP 429 rotation. Never replays the failed request or bypasses proxies.",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "Enable failover for subsequent requests, including OpenCode retries."
+              },
+              "proxies": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 64,
+                "uniqueItems": true,
+                "items": { "type": "string" },
+                "description": "Ordered fallback proxy names. Must exist in proxies and differ from the primary proxy."
+              },
+              "cooldownMs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600000,
+                "default": 30000,
+                "description": "Exclude a failed proxy for this many milliseconds. An exhausted pool returns 503."
+              },
+              "failureThreshold": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64,
+                "default": 1,
+                "description": "Consecutive transport failures before rotating. Complete non-429 responses and manual selections reset the counter. Default 1 preserves existing behavior."
+              },
+              "rotateOnRateLimit": {
+                "type": "boolean",
+                "default": false,
+                "description": "Opt in to rotating after HTTP 429, independently of failureThreshold. Excludes the selected proxy for at least cooldownMs and Retry-After, but retains provider-wide Retry-After backoff. Never replays requests."
+              }
+            }
+          },
           "allowedOrigins": {
             "type": "array",
             "minItems": 1,
